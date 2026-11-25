@@ -1,0 +1,5 @@
+fastapi
+loguru
+meraki
+python-dotenv
+valkey[libvalkey]
