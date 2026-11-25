@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: meraki-cache-api
+  namespace: intuit
+  labels:
+    app: meraki-cache-api
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: meraki-cache-api
+  template:
+    metadata:
+      annotations:
+        vault.hashicorp.com/agent-inject: 'true'
+        vault.hashicorp.com/agent-pre-populate-only: 'true'
+        vault.hashicorp.com/ca-cert: /run/secrets/kubernetes.io/serviceaccount/ca.crt
+        vault.hashicorp.com/role: 'meraki-cache-api'
+        vault.hashicorp.com/agent-inject-secret-meraki-cache-api: 'secret/meraki-cache-api'
+        vault.hashicorp.com/agent-inject-template-meraki-cache-api: |
+          {{- with secret "secret/meraki-cache-api" -}}
+            export MERAKI_API_KEY="{{ .Data.data.meraki_api_key }}"
+          {{- end }}
+      labels:
+        app: meraki-cache-api
+    spec:
+      serviceAccountName: meraki-cache-api
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10014
+        runAsGroup: 10015
+        fsGroup: 10015
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: meraki-cache-api
+          image: harbor.pscp-css.support/library/meraki-cache-api:1.0.0
+          imagePullPolicy: Always
+          command: ["sh", "-c", "source /vault/secrets/meraki-cache-api && python -m uvicorn src.api:app --host 0.0.0.0 --port 8080"]
+          securityContext:
+            readOnlyRootFilesystem: false
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: http
+              containerPort: 8080
